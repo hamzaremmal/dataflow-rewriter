@@ -183,12 +183,17 @@ theorem sigma_rw_simp {S T : Type _} {m m' : Σ (y : Type _), S → y → T → 
   m.snd x v y ↔ m'.snd x ((cast_first h).mp v) y := by
   constructor <;> (intros; subst h; assumption)
 
-def φ (x : rhsModuleType T₁ T₂ T₃) (y : lhsModuleType T₁ T₂ T₃) : Prop := sorry
+-- TODO: Can I write differently the lambda that extract the element from p's queue
+def φ (rhs : rhsModuleType T₁ T₂ T₃) (lhs : lhsModuleType T₁ T₂ T₃) : Prop :=
+  let ⟨⟨j2l, j2r⟩, ⟨j1l, j1r⟩⟩ := lhs
+  let ⟨⟨j2l', j2r'⟩, ⟨⟨j1l', j1r'⟩, p⟩⟩ := rhs
+  (j1l ++ j2l.map Prod.fst = j2l' ++ p.map (fun ⟨⟨elem, _⟩, _⟩ => elem)) ∧
+  (j1r ++ j2l.map Prod.snd = j1l' ++ j2r'.map Prod.fst ++ p.map (fun ⟨⟨_, elem⟩, _⟩ => elem)) ∧
+  (j2r = j1r' ++ j2r'.map Prod.snd ++ p.map (fun ⟨⟨_, _⟩, elem⟩ => elem))
 
 theorem φ_indistinguishable :
   ∀ x y, φ x y → Module.indistinguishable (rhsModule T₁ T₂ T₃) (lhsModule T₁ T₂ T₃) x y := by sorry
 
-theorem refines {T: Type _} [DecidableEq T]:
-    rhsModule T₁ T₂ T₃ ⊑_{φ} lhsModule T₁ T₂ T₃ := by sorry
+theorem refines {T: Type _} [DecidableEq T]: rhsModule T₁ T₂ T₃ ⊑_{φ} lhsModule T₁ T₂ T₃ := by sorry
 
 end DataflowRewriter.JoinRewrite
