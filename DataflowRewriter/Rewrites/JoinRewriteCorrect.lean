@@ -342,6 +342,14 @@ theorem something'':
       . assumption
       . assumption
 
+theorem s' {T₁ T₂ T₃: Type _} (i i': rhsModuleType T₁ T₂ T₃) :
+  ∀ rule, rule ∈ (rhsModule T₁ T₂ T₃).internals ∧ rule i i' → existSR (rhsModule T₁ T₂ T₃).internals i i' := by
+    intro rule ⟨_, _⟩
+    apply existSR.step i i' i' rule
+    . assumption
+    . assumption
+    . exact existSR_reflexive
+
 theorem product_is_list_zip {T₁ T₂: Type _} (x: List (T₁ × T₂)): x = List.zip (List.map Prod.fst x) (List.map Prod.snd x) :=
   by sorry
 
@@ -432,121 +440,19 @@ theorem refines {T: Type _} [DecidableEq T]: rhsModule T₁ T₂ T₃ ⊑_{φ} l
             . assumption
     . exfalso; exact (PortMap.getIO_not_contained_false HContains a)
   -- output rules
-  . intros ident mid_i v rhs
-    by_cases HContains: ((rhsModule T₁ T₂ T₃).outputs.contains ident)
-    . unfold rhsModule at HContains; simp at HContains; subst_vars
-      reduce at v; simp
-      use sorry
-      apply And.intro
-      . sorry
-      . sorry
-    . exfalso; exact (PortMap.getIO_not_contained_false HContains rhs)
+  . sorry
   -- internal rules
-  . intros rule mid_i HruleIn Hrule
-    unfold φ at Hφ <;> obtain ⟨ Hψ, _ ⟩ := Hφ
+  . intros rule mid_i _ _
     use init_s
     apply And.intro
     . exact existSR_reflexive
-    . unfold φ <;> apply And.intro
-      . unfold rhsModule at HruleIn
-        simp at HruleIn
-        obtain ⟨_, _⟩ := HruleIn <;> subst_vars
-        . obtain⟨_, _, _, _, _, _, _, ⟨⟨⟨_, _⟩, _⟩, _⟩, ⟨⟨_, _⟩, _⟩⟩ := Hrule
-          obtain ⟨⟨_, _⟩, ⟨⟨_, _⟩, _⟩⟩ := init_i
-          obtain ⟨⟨_, _⟩, ⟨⟨_, _⟩⟩⟩ := init_s
-          . subst_vars
-            obtain ⟨⟨_, _⟩, ⟨⟨_, _⟩, _⟩⟩ := mid_i
-            unfold ψ at *; simp at *
-            and_intros
-            . rename_i synth1 synth2
-              obtain ⟨_, _⟩ := synth1
-              obtain ⟨_, _⟩ := synth2
-              obtain ⟨_, ⟨_, _⟩⟩ := Hψ
-              subst_vars
-              assumption
-            . rename_i synth1 synth2
-              obtain ⟨_, _⟩ := synth1
-              obtain ⟨⟨_, _⟩, _⟩ := synth2
-              obtain ⟨_, ⟨_, _⟩⟩ := Hψ
-              subst_vars <;> simp
-              assumption
-            . rename_i synth1 synth2
-              obtain ⟨_, _⟩ := synth1
-              obtain ⟨⟨_, _⟩, _⟩ := synth2
-              obtain ⟨_, ⟨_, _⟩⟩ := Hψ
-              subst_vars <;> simp
-          . subst_vars
-            obtain ⟨⟨_, _⟩, ⟨⟨_, _⟩, _⟩⟩ := mid_i
-            unfold ψ at *; simp at *
-            and_intros
-            . rename_i synth1 synth2
-              obtain ⟨_, _⟩ := synth1
-              obtain ⟨⟨_, _⟩, _⟩ := synth2
-              obtain ⟨_, ⟨_, _⟩⟩ := Hψ
-              subst_vars <;> assumption
-            . rename_i synth1 synth2
-              obtain ⟨_, _⟩ := synth1
-              obtain ⟨⟨_, _⟩, _⟩ := synth2
-              obtain ⟨_, ⟨_, _⟩⟩ := Hψ
-              subst_vars <;> simp
-              assumption
-            . rename_i synth1 synth2
-              obtain ⟨_, _⟩ := synth1
-              obtain ⟨⟨_, _⟩, _⟩ := synth2
-              obtain ⟨_, ⟨_, _⟩⟩ := Hψ
-              subst_vars <;> simp
-        . obtain⟨_, _, _, _, _, _, _, _, ⟨⟨⟨_, _⟩, _⟩, ⟨⟨_, _⟩, _⟩⟩⟩ := Hrule
-          obtain ⟨⟨_, _⟩, ⟨⟨_, _⟩, _⟩⟩ := init_i
-          obtain ⟨⟨_, _⟩, ⟨⟨_, _⟩⟩⟩ := init_s
-          . subst_vars
-            obtain ⟨⟨_, _⟩, ⟨⟨_, _⟩, _⟩⟩ := mid_i
-            unfold ψ at *; simp at *
-            and_intros
-            . rename_i synth1 synth2 synth3
-              obtain ⟨_, _⟩ := synth1
-              obtain ⟨_, _⟩ := synth2
-              obtain ⟨⟨_, _⟩, _⟩ := synth3
-              obtain ⟨_, ⟨_, _⟩⟩ := Hψ
-              subst_vars <;> simp
-              assumption
-            . rename_i synth1 synth2 synth3
-              obtain ⟨⟨_, _⟩, _⟩ := synth1
-              obtain ⟨_, _⟩ := synth2
-              obtain ⟨⟨_, _⟩, _⟩ := synth3
-              obtain ⟨_, ⟨_, _⟩⟩ := Hψ
-              subst_vars <;> simp
-              assumption
-            . rename_i synth1 synth2 synth3
-              obtain ⟨⟨_, _⟩, _⟩ := synth1
-              obtain ⟨_, _⟩ := synth2
-              obtain ⟨⟨_, _⟩, _⟩ := synth3
-              obtain ⟨_, ⟨_, _⟩⟩ := Hψ
-              subst_vars <;> simp
-          . subst_vars
-            obtain ⟨⟨_, _⟩, ⟨⟨_, _⟩, _⟩⟩ := mid_i
-            unfold ψ at *; simp at *
-            and_intros
-            . rename_i synth1 synth2 synth3
-              obtain ⟨_, _⟩ := synth1
-              obtain ⟨_, _⟩ := synth2
-              obtain ⟨⟨_, _⟩, _⟩ := synth3
-              obtain ⟨_, ⟨_, _⟩⟩ := Hψ
-              subst_vars <;> simp
-              assumption
-            . rename_i synth1 synth2 synth3
-              obtain ⟨⟨_, _⟩, _⟩ := synth1
-              obtain ⟨_, _⟩ := synth2
-              obtain ⟨⟨_, _⟩, _⟩ := synth3
-              obtain ⟨_, ⟨_, _⟩⟩ := Hψ
-              subst_vars <;> simp
-              assumption
-            . rename_i synth1 synth2 synth3
-              obtain ⟨⟨_, _⟩, _⟩ := synth1
-              obtain ⟨_, _⟩ := synth2
-              obtain ⟨⟨_, _⟩, _⟩ := synth3
-              obtain ⟨_, ⟨_, _⟩⟩ := Hψ
-              subst_vars <;> simp
+    . unfold φ at *
+      obtain ⟨_, _⟩ := Hφ
+      apply And.intro
+      . apply (something'' init_i)
+        . assumption
+        . apply s' init_i mid_i rule
+          and_intros <;> assumption
       . assumption
-
 
 end DataflowRewriter.JoinRewrite
