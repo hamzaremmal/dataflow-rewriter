@@ -659,6 +659,25 @@ theorem existSR_cons {S} {r} {rules : List (S → S → Prop)} :
   | step init mid final rule hrulein hrule hex ih =>
     constructor; right; assumption; assumption; assumption
 
+theorem existSR_single_step {S : Type _} {rules : List (S → S → Prop)}:
+  ∀ s s' rule, rule ∈ rules ∧ rule s s' → existSR rules s s' := by
+    intro s s' rule ⟨_, _⟩
+    apply existSR.step s s' s' rule
+    . assumption
+    . assumption
+    . exact existSR_reflexive
+
+theorem existSR_single_step' {S : Type _} (rules : List (S → S → Prop)):
+  ∀ s s', ∀ rule ∈ rules, rule s s' → existSR rules s s' := by
+    intros
+    apply existSR_single_step <;> and_intros <;> assumption
+
+theorem existSR_norules {S: Type _}: ∀ (s₁ s₂: S), existSR [] s₁ s₂ → s₁ = s₂ := by
+  intro s₁ s₂ h
+  cases h with
+  | done => rfl
+  | step _ _ _ _ h => cases h
+
 namespace Module
 
 section Refinementφ

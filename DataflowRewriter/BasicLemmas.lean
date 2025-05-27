@@ -67,6 +67,15 @@ theorem getIO_cons {Ident} [DecidableEq Ident] {S}
   (PortMap.getIO (AssocList.cons x v pm) x) = v := by
     unfold PortMap.getIO; simpa
 
+@[simp]
+theorem getIO_cons' {Ident} [DecidableEq Ident] {S}
+  (pm : PortMap Ident ((T : Type) × (S → T → S → Prop))) x v u:
+  u ≠ x → (PortMap.getIO (AssocList.cons u v pm) x) = (PortMap.getIO pm x) := by
+  intro
+  unfold PortMap.getIO
+  rw [AssocList.find?_cons_neq]
+  assumption
+
 -- TODO: @[simp] ?
 theorem getIO_map' {S : Type _}
   {i : Nat}

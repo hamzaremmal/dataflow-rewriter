@@ -115,7 +115,6 @@ def_module rhsModule : StringModule (rhsModuleType T₁ T₂ T₃) :=
   [e| (rewriteLhsRhs S₁ S₂ S₃).output_expr, @environmentRhs T₁ T₂ T₃ S₁ S₂ S₃ ]
 
 instance : MatchInterface (rhsModule T₁ T₂ T₃) (lhsModule T₁ T₂ T₃) := by
-  dsimp [rhsModule, lhsModule]
   solve_match_interface
 
 @[reducible] def cast_first {β : Type _ → Type _} {a b : (Σ α, β α)} (h : a = b) : a.fst = b.fst := by
@@ -131,7 +130,9 @@ theorem sigma_rw_simp {S T : Type _} {m m' : Σ (y : Type _), S → y → T → 
   m.snd x v y ↔ m'.snd x ((cast_first h).mp v) y := by
   constructor <;> (intros; subst h; assumption)
 
-inductive partially
+---------------------------------------------------------------------------------------------------
+------
+---------------------------------------------------------------------------------------------------
 
 inductive partially_flushed: lhsModuleType T₁ T₂ T₃ -> Prop where
 | lhs: ∀ lower arb, partially_flushed ⟨lower, [], arb⟩
@@ -144,12 +145,9 @@ def ψ (rhs : rhsModuleType T₁ T₂ T₃) (lhs : lhsModuleType T₁ T₂ T₃)
   (j2l.map Prod.snd ++ j1r = p.map ((Prod.snd ∘ Prod.fst)) ++ j2r'.map Prod.fst ++ j1l') ∧
   (j2r = p.map Prod.snd ++ j2r'.map Prod.snd ++ j1r')
 
-
--- TODO: Can I write differently the lambda that extract the element from p's queue
 def φ (rhs : rhsModuleType T₁ T₂ T₃) (lhs : lhsModuleType T₁ T₂ T₃) : Prop :=
   (ψ rhs lhs) ∧ (partially_flushed lhs)
 
--- loogle.lean-lang.org
 theorem φ_indistinguishable :
   ∀ x y, φ x y → Module.indistinguishable (rhsModule T₁ T₂ T₃) (lhsModule T₁ T₂ T₃) x y := by
   intro ⟨⟨_, _⟩, ⟨⟨_, _⟩, _⟩⟩ ⟨⟨_, _⟩, ⟨_, _⟩⟩ Hφ
@@ -287,21 +285,7 @@ theorem something'':
       . assumption
       . assumption
 
-theorem s' {T₁ T₂ T₃: Type _} (i i': rhsModuleType T₁ T₂ T₃) :
-  ∀ rule, rule ∈ (rhsModule T₁ T₂ T₃).internals ∧ rule i i' → existSR (rhsModule T₁ T₂ T₃).internals i i' := by
-    intro rule ⟨_, _⟩
-    apply existSR.step i i' i' rule
-    . assumption
-    . assumption
-    . exact existSR_reflexive
-
 theorem lengthify {T₁: Type _} (a b: List T₁): a = b → a.length = b.length := by
-  intro heq; rw [heq]
-
-theorem takify {T₁: Type _} (l: ℕ) (l₁ l₂: List T₁): l₁ = l₂ -> List.take l l₁ = List.take l l₂ := by
-  intro heq; rw [heq]
-
-theorem dropify {T₁: Type _} (l: ℕ) (l₁ l₂: List T₁): l₁ = l₂ -> List.drop l l₁ = List.drop l l₂ := by
   intro heq; rw [heq]
 
 theorem product_is_list_zip {T₁ T₂: Type _} (x: List (T₁ × T₂)): x = List.zip (List.map Prod.fst x) (List.map Prod.snd x) := by
@@ -318,42 +302,16 @@ theorem append_iff {α} {a b c d : List α} : a.length = c.length → (a ++ b = 
     . replace h := congrArg (List.take a.length) h
       rw [List.take_left, lengths, List.take_left] at h
       assumption
-    . apply dropify a.length at h
+    . replace h := congrArg (List.drop a.length) h
       rw [List.drop_left, lengths, List.drop_left] at h
       assumption
   . intro ⟨_, _⟩; subst_vars; rfl
 
--- example {T1 T2 T3} : ∀ s : lhsModuleType T1 T2 T3, (∀ r s', r ∈ (lhsModule T1 T2 T3).internals → ¬ r s s') →
-example {T1 T2 T3} : ∀ s : lhsModuleType T1 T2 T3, (¬ ∃ s' r, r ∈ (lhsModule T1 T2 T3).internals ∧ r s s') → (∀ r ∈ (lhsModule T1 T2 T3).internals, ∀ s', ¬ r s s') := by
-  intro s H r hr s' hrss
-  apply H
-  exists s', r
+----------------------------------------------------------------------------------------------
+------------------------------ PROOF THAT rhsModule REFINES lhsModule -----------------------------
+---------------------------------------------------------------------------------------------------
 
-example {T1 T2 T3} : ∀ s : lhsModuleType T1 T2 T3, (∀ r ∈ (lhsModule T1 T2 T3).internals, ∀ s', ¬ r s s') → partially_flushed s := by
-  intro ⟨s1, s2, s3⟩ hr; dsimp [lhsModuleType, lhsModule] at *
-  specialize hr _ (by simp; rfl)
-  cases s2 <;> cases s3 <;> try constructor
-  exfalso
-  apply hr ⟨⟨_, _⟩, ⟨_, _⟩⟩
-  iterate 6 (apply Exists.intro _)
-  and_intros <;> dsimp
-
--- lhsModule is spec is trivial, because you just do the same steps as lhsModule'
--- lhsModule' being spec is not trivial
--- rhsModule' ⊑ lshModule' could be interesting, not sure if easier.
-def lhsModule' : StringModule (lhsModuleType T₁ T₂ T₃) :=
-  {
-    inputs := (lhsModule T₁ T₂ T₃).inputs.mapVal (λ k v =>
-        ⟨v.1, fun s ret s'' =>
-          ∃ (s' : lhsModuleType T₁ T₂ T₃), v.2 s ret s'
-            ∧ existSR (lhsModule T₁ T₂ T₃).internals s' s''                -- Allow rule executions
-            ∧ (∀ r ∈ (lhsModule T₁ T₂ T₃).internals, ∀ s_n, ¬ r s'' s_n)⟩  -- Ensure they are terminal
-      ),
-    outputs := (lhsModule T₁ T₂ T₃).outputs,
-    init_state := fun _ => True,
-  }
-
-theorem refines {T: Type _} [DecidableEq T]: rhsModule T₁ T₂ T₃ ⊑_{φ} lhsModule T₁ T₂ T₃ := by
+theorem refines: rhsModule T₁ T₂ T₃ ⊑_{φ} lhsModule T₁ T₂ T₃ := by
   unfold Module.refines_φ
   intro init_i init_s Hφ
   apply Module.comp_refines.mk
@@ -369,7 +327,7 @@ theorem refines {T: Type _} [DecidableEq T]: rhsModule T₁ T₂ T₃ ⊑_{φ} l
         <;> subst_vars <;> simp <;> rw [PortMap.rw_rule_execution] at a <;> simp at a
       . obtain ⟨⟨_, _⟩, ⟨_, _⟩, _⟩ := a
         subst_vars
-        have_hole heq : ((rhsModule T₁ T₂ T₃).inputs.getIO { inst := InstIdent.top, name := "i_0" }).fst = _ := by dsimp [reducePortMapgetIO]
+        have_hole heq : ((rhsModule T₁ T₂ T₃).inputs.getIO { inst := .top, name := "i_0" }).fst = _ := by dsimp [reducePortMapgetIO]
         -- We construct the almost_mid_s manually
         use ⟨⟨sj2l, sj2r⟩, ⟨sj1l ++ [heq.mp s], sj1r⟩⟩
         apply And.intro
@@ -534,10 +492,833 @@ theorem refines {T: Type _} [DecidableEq T]: rhsModule T₁ T₂ T₃ ⊑_{φ} l
       apply And.intro
       . apply (something'' init_i)
         . assumption
-        . apply s' init_i mid_i rule
-          and_intros <;> assumption
+        . apply existSR_single_step <;> and_intros <;> assumption
       . assumption
 
-#print axioms refines
+---------------------------------------------------------------------------------------------------
+--------------------------------- MORE GLOBAL LEMMAS AND THEOREMS ---------------------------------
+---------------------------------------------------------------------------------------------------
+
+-- TODO: Move this theorem into a more general file
+theorem AssocList.mapVal_mapVal {K V₁ V₂ V₃ : Type _} (m : AssocList K V₁) {f : K → V₂ → V₃} {g : K → V₁ → V₂} :
+  AssocList.mapVal f (AssocList.mapVal g m) = AssocList.mapVal (fun k v => f k (g k v)) m := by
+  induction m with
+  | nil => rfl
+  | cons _ _ _ ih => dsimp; rw [ih]
+
+---------------------------------------------------------------------------------------------------
+---------------------------------- DEFINITION OF A FLUSHED MODULE ---------------------------------
+---------------------------------------------------------------------------------------------------
+
+def pf {S: Type _} (rules: List (S → S → Prop)) (s: S) :=
+  ∀ r ∈ rules, ∀ s', ¬ r s s'
+
+---------------------------------------------------------------------------------------------------
+----
+---------------------------------------------------------------------------------------------------
+
+-- example {T1 T2 T3} : ∀ s : lhsModuleType T1 T2 T3, (∀ r s', r ∈ (lhsModule T1 T2 T3).internals → ¬ r s s') →
+example {T1 T2 T3} : ∀ s : lhsModuleType T1 T2 T3, (¬ ∃ s' r, r ∈ (lhsModule T1 T2 T3).internals ∧ r s s') → (∀ r ∈ (lhsModule T1 T2 T3).internals, ∀ s', ¬ r s s') := by
+  intro s H r hr s' hrss
+  apply H
+  exists s', r
+
+theorem pf_is_partially_flushed : ∀ (s : (lhsModuleType T₁ T₂ T₃)), pf (lhsModule T₁ T₂ T₃).internals s → partially_flushed s := by
+  intro ⟨s1, s2, s3⟩ hr; dsimp [lhsModuleType, lhsModule] at *
+  specialize hr ?r (by simp; rfl)
+  cases s2 <;> cases s3 <;> try constructor
+  exfalso
+  apply hr ⟨⟨_, _⟩, ⟨_, _⟩⟩
+  iterate 6 (apply Exists.intro _)
+  and_intros <;> dsimp
+
+theorem partially_flushed_is_pf : ∀ (s : (lhsModuleType T₁ T₂ T₃)), partially_flushed s → pf (lhsModule T₁ T₂ T₃).internals s := by
+  intro s h
+  cases h
+  all_goals
+    unfold pf
+    intros rule hᵣ _ h
+    simp [lhsModule] at hᵣ <;> subst hᵣ
+    simp at h
+
+---------------------------------------------------------------------------------------------------
+-----
+---------------------------------------------------------------------------------------------------
+
+--structure Flushed (S : Type _) where
+--  val : S
+
+--instance {S: Type _} : Coe (Flushed S) S where
+--  coe := Flushed.val
+
+-- Build a Module that always flushes from a given Module
+def flushed {Ident S : Type _} (mod: Module Ident S): Module Ident S :=
+  {
+    inputs := mod.inputs.mapVal (λ _ v =>
+        ⟨v.1, λ s ret s'' =>
+          ∃ s', v.2 s ret s'
+            ∧ existSR mod.internals s' s'' -- Allow to execute the rules
+            ∧ pf mod.internals s''⟩        -- Ensure we reach a flushed state
+      ),
+    outputs    := mod.outputs,
+    init_state := λ s =>
+      ∃ s', mod.init_state s
+          ∧ existSR mod.internals s s'     -- Allow to execute the rules
+          ∧ pf mod.internals s'            -- Ensure we reach a flushed state
+  }
+
+theorem flushed_preserves_input_types {Ident S : Type _} (mod: Module Ident S):
+  (flushed mod).inputs.mapVal (λ _ v => Sigma.fst v) = mod.inputs.mapVal (λ _ v => Sigma.fst v) :=
+by
+  rw [flushed, AssocList.mapVal_mapVal]
+
+theorem flushed_preserves_outputs {Ident S : Type _} (mod: Module Ident S): (flushed mod).outputs = mod.outputs := by
+  rfl
+---------------------------------------------------------------------------------------------------
+----
+---------------------------------------------------------------------------------------------------
+
+-- TODO: Can I add attributes to use them directly without affecting the proofs
+def flhsModule (T₁ T₂ T₃ : Type) := flushed (lhsModule T₁ T₂ T₃)
+def frhsModule (T₁ T₂ T₃ : Type) := flushed (rhsModule T₁ T₂ T₃)
+
+variable (T₁ T₂ T₃) in
+def_module flushed_lhsModuleType : Module String (lhsModuleType T₁ T₂ T₃) :=
+  flushed (lhsModule T₁ T₂ T₃)
+reduction_by
+  dsimp [flushed]
+  conv =>
+    pattern (occs := *) (Module.inputs _)
+    all_goals unfold lhsModule
+  conv =>
+    pattern (occs := *) (Module.outputs _)
+    all_goals unfold lhsModule
+  dsimp
+
+---------------------------------------------------------------------------------------------------
+---
+---------------------------------------------------------------------------------------------------
+
+instance {Ident S: Type _} [DecidableEq Ident] (mod: Module Ident S) : MatchInterface (flushed mod) mod := by
+  rw [MatchInterface_simpler_iff]
+  rw [flushed_preserves_input_types, flushed_preserves_outputs]
+  intros <;> and_intros <;> rfl
+
+instance {Ident S: Type _} [DecidableEq Ident] (mod: Module Ident S) : MatchInterface mod (flushed mod) := by
+  haveI: MatchInterface (flushed mod) mod := by infer_instance
+  apply MatchInterface_symmetric <;> assumption
+
+instance {Ident S₁ S₂: Type _} [DecidableEq Ident] (mod₁: Module Ident S₁) (mod₂: Module Ident S₂) [MatchInterface mod₁ mod₂]: MatchInterface (flushed mod₁) (flushed mod₂) := by
+  have: MatchInterface (flushed mod₁) mod₁ := by infer_instance
+  have: MatchInterface mod₂ (flushed mod₂) := by infer_instance
+  have: MatchInterface mod₁ (flushed mod₂) := by
+    apply MatchInterface_transitive <;> assumption
+  apply MatchInterface_transitive <;> assumption
+
+---------------------------------------------------------------------------------------------------
+------------------------- PROOF THAT A FLUSHED VERSION REFINES THE MODULE -------------------------
+---------------------------------------------------------------------------------------------------
+
+theorem internal_rules_deterministic:
+  ∀ rule ∈ (lhsModule T₁ T₂ T₃).internals, ∀ s₁ s₂ s₃, rule s₁ s₂ → rule s₁ s₃ → s₂ = s₃ :=
+by
+  intro _ _ ⟨⟨_ , _⟩, ⟨_ , _⟩⟩ ⟨⟨_ , _⟩, ⟨_ , _⟩⟩ ⟨⟨_ , _⟩, ⟨_ , _⟩⟩ h₁ h₂
+  simp [lhsModule] at *
+  subst_vars
+  dsimp at h₁ h₂
+  obtain ⟨_, _, _, _, _, _, _⟩ := h₁
+  obtain ⟨_, _, _, _, _, _, _⟩ := h₂
+  repeat
+    cases ‹_ ∧ _›
+    try simp at *
+    try subst_vars
+  rfl
+
+theorem output_rules_deterministic: ∀ ident s₁ v s₂ s₃,
+  ((lhsModule T₁ T₂ T₃).outputs.getIO ident).snd s₁ v s₂
+  → ((lhsModule T₁ T₂ T₃).outputs.getIO ident).snd s₁ v s₃
+  → s₂ = s₃ :=
+by
+  intro ident ⟨⟨_ , _⟩, ⟨_ , _⟩⟩ _ ⟨⟨_ , _⟩, ⟨_ , _⟩⟩ ⟨⟨_ , _⟩, ⟨_ , _⟩⟩ h₁ h₂
+  by_cases HContains: ((lhsModule T₁ T₂ T₃).outputs.contains ident)
+  . simp [lhsModule] at HContains; subst HContains
+    dsimp [lhsModule] at h₁ h₂
+    rw [PortMap.rw_rule_execution] at h₁ h₂
+    dsimp at h₁ h₂
+    repeat
+      cases ‹_ ∧ _›
+      try simp at *
+      try subst_vars
+    rfl
+  . exfalso; exact (PortMap.getIO_not_contained_false (by assumption) HContains)
+
+theorem input_rules_deterministic: ∀ ident s₁ v s₂ s₃,
+  ((lhsModule T₁ T₂ T₃).inputs.getIO ident).snd s₁ v s₂
+  → ((lhsModule T₁ T₂ T₃).inputs.getIO ident).snd s₁ v s₃
+  → s₂ = s₃ :=
+by
+  intro ident ⟨⟨_ , _⟩, ⟨_ , _⟩⟩ _ ⟨⟨_ , _⟩, ⟨_ , _⟩⟩ ⟨⟨_ , _⟩, ⟨_ , _⟩⟩ h₁ h₂
+  by_cases HContains: ((lhsModule T₁ T₂ T₃).inputs.contains ident)
+  . simp [lhsModule] at HContains
+    rcases HContains with h | h | h <;> subst h
+    all_goals
+      dsimp [lhsModule] at h₁ h₂
+      rw [PortMap.rw_rule_execution] at h₁ h₂
+      dsimp at h₁ h₂
+      repeat
+        cases ‹_ ∧ _›
+        try simp at *
+        try subst_vars
+      rfl
+  . exfalso; exact (PortMap.getIO_not_contained_false (by assumption) HContains)
+
+-- TODO: Rename this theorem
+theorem bll {Ident S: Type _} [DecidableEq Ident] (mod: Module Ident S):
+  ∀ ident, ((flushed mod).inputs.getIO ident).fst = (mod.inputs.getIO ident).fst :=
+by
+  intro ident
+  -- why can't I just write one or use repeat
+  unfold PortMap.getIO
+  rw [<- Option.getD_map Sigma.fst, <- Option.getD_map Sigma.fst]
+  rw [Batteries.AssocList.find?_map_comm, Batteries.AssocList.find?_map_comm]
+  rw [flushed_preserves_input_types]
+
+theorem bll₂ {Ident S: Type _} [DecidableEq Ident] (mod: Module Ident S):
+  ∀ ident, (mod.inputs.getIO ident).fst = ((flushed mod).inputs.getIO ident).fst :=
+by
+  intro; symm; apply bll
+
+theorem contains_of_cons_ne_head {K V : Type _} [DecidableEq K] {k k' : K} {v : V} : ∀ tl,
+  Batteries.AssocList.contains k (Batteries.AssocList.cons k' v tl) = true
+  → k' ≠ k
+  → Batteries.AssocList.contains k tl = true :=
+by
+  intros _ h _
+  simp at *
+  cases h
+  . exfalso; contradiction
+  . assumption
+
+universe u
+theorem portmap_mapVal {S: Type _} {Ident: Type _} [DecidableEq Ident] {f: (Σ T : Type u, (S → T → S → Prop)) → (Σ T : Type u, (S → T → S → Prop))} (ports: PortMap Ident (Σ T : Type u, (S → T → S → Prop))):
+  ∀ ident, ports.contains ident
+  → PortMap.getIO (ports.mapVal (λ _ v => f v)) ident = f (PortMap.getIO ports ident) :=
+by
+  intros ident h
+  induction ports with
+  | nil =>
+    exfalso; contradiction
+  | cons key _ tail ih =>
+    rw [Batteries.AssocList.mapVal_cons]
+    by_cases key = ident
+    . subst_vars
+      dsimp [PortMap.getIO]
+      repeat rw [Batteries.AssocList.find?_cons_eq]
+      rfl
+    . dsimp [PortMap.getIO]
+      dsimp [PortMap.getIO] at ih
+      rw [Batteries.AssocList.find?_cons_neq] <;> try assumption
+      rw [Batteries.AssocList.find?_cons_neq] <;> try assumption
+      apply ih <;> try dsimp <;> assumption
+      apply contains_of_cons_ne_head <;> assumption
+
+def f {Ident S: Type _} (v: (Σ T: Type u, (S → T → S → Prop))) (mod: Module Ident S) : (Σ T: Type _, (S → T → S → Prop)):=
+  ⟨v.fst, fun s ret s'' => ∃ s', v.snd s ret s' ∧ existSR mod.internals s' s'' ∧ pf mod.internals s''⟩
+
+theorem f_preserve_fst {Ident S: Type _} [DecidableEq Ident] (mod: Module Ident S)(ident: InternalPort Ident) :
+  ((flushed mod).inputs.getIO ident).fst = (f (mod.inputs.getIO ident) mod).fst :=
+by
+  dsimp [f, flushed]
+  induction mod.inputs with
+  | nil => dsimp
+  | cons  key hd tl ih =>
+    rw [Batteries.AssocList.mapVal]
+    by_cases key = ident
+    . subst_vars
+      repeat rw [PortMap.getIO_cons]
+    . rw [PortMap.getIO_cons', ih, PortMap.getIO_cons'] <;> assumption
+
+theorem bll' {Ident S: Type _} [DecidableEq Ident]:
+  ∀ (mod: Module Ident S) ident s v s',
+    ((flushed mod).inputs.getIO ident).snd s v s'
+      -> ∃ s'', (mod.inputs.getIO ident).snd s ((bll mod ident).mp v) s'' ∧ existSR (mod.internals) s'' s' ∧ pf mod.internals s':=
+by
+  intros mod ident s₁ v s₂ h
+  dsimp [flushed] at h
+  simp [flushed] at *
+
+  have h₁: (PortMap.getIO (mod.inputs.mapVal (fun _ v => f v mod)) ident = f (PortMap.getIO mod.inputs ident) mod) := by
+    apply portmap_mapVal
+    sorry -- TODO: annoying but trivial
+
+  have: (PortMap.getIO (mod.inputs.mapVal (λ _ v => f v mod)) ident) = ((PortMap.getIO
+      (Batteries.AssocList.mapVal
+        (fun x v =>
+          ⟨v.fst, fun s ret s'' => ∃ s', v.snd s ret s' ∧ existSR mod.internals s' s'' ∧ pf mod.internals s''⟩)
+        mod.inputs)
+      ident)) := by
+      unfold f
+      rfl
+  rw [this] at h₁; clear this
+  have: (f (mod.inputs.getIO ident) mod).snd s₁ ((f_preserve_fst mod ident).mp v) s₂ := by
+    sorry
+  clear h₁ h
+  unfold f at this
+  dsimp [f] at this
+  assumption
+
+-- TODO: Prove the following lemmas
+--   - if a rule can be applied, the port is in the portmap
+--   - if a port is in the portmap, the same port is in the portmap of flushed
+--   - if I have a port in the portmap, then for any state, I can apply the rule linked to that port
+theorem abc: ∀ ident s₁ v s₂,
+  ((lhsModule T₁ T₂ T₃).inputs.getIO ident).snd s₁ v s₂
+  → ∃ s₃, ((flushed (lhsModule T₁ T₂ T₃)).inputs.getIO ident).snd s₁ ((bll₂ (lhsModule T₁ T₂ T₃) ident).mp v) s₃ :=
+by
+  intros
+  sorry
+
+theorem abc₂: ∀ ident s₁ v s₂ s₃,
+  ((lhsModule T₁ T₂ T₃).inputs.getIO ident).snd s₁ v s₂
+  → ((flushed (lhsModule T₁ T₂ T₃)).inputs.getIO ident).snd s₁ ((bll₂ (lhsModule T₁ T₂ T₃) ident).mp v) s₃
+  → pf (lhsModule T₁ T₂ T₃).internals s₃ :=
+by
+  intros _ _ _ _ _ _ h
+  apply bll' at h
+  obtain ⟨s, _, _, _⟩ := h
+  assumption
+
+theorem abc₃: ∀ ident s₁ v s₂ s₃,
+  ((lhsModule T₁ T₂ T₃).inputs.getIO ident).snd s₁ v s₂
+  → ((flushed (lhsModule T₁ T₂ T₃)).inputs.getIO ident).snd s₁ ((bll₂ (lhsModule T₁ T₂ T₃) ident).mp v) s₃
+  → existSR (lhsModule T₁ T₂ T₃).internals s₂ s₃ :=
+by
+  intros _ s₁ _ s₂ s₃ _ h
+  apply bll' at h
+  obtain ⟨s, _, _, _⟩ := h
+  simp at *
+  have: s = s₂ := by apply input_rules_deterministic <;> assumption
+  subst this
+  assumption
+
+theorem bll'₂: ∀ ident s v s',
+  ((lhsModule T₁ T₂ T₃).inputs.getIO ident).snd s v s'
+  -> ∃ s'', ((flushed (lhsModule T₁ T₂ T₃)).inputs.getIO ident).snd s ((bll₂ (lhsModule T₁ T₂ T₃) ident).mp v) s'' ∧ existSR ((lhsModule T₁ T₂ T₃).internals) s' s'' ∧ pf (lhsModule T₁ T₂ T₃).internals s'' :=
+by
+  intros ident s v _ _
+  have: ∃ s'', ((flushed (lhsModule T₁ T₂ T₃)).inputs.getIO ident).snd s ((bll₂ (lhsModule T₁ T₂ T₃) ident).mp v) s'' := by
+    apply abc <;> assumption
+  obtain ⟨s₁, h⟩ := this
+  use s₁
+  and_intros <;> try assumption
+  . apply abc₃ <;> assumption
+  . apply abc₂ <;> assumption
+
+
+theorem φ₁_indistinguishable' {Ident S: Type _} [DecidableEq Ident] (mod: Module Ident S):
+  ∀ x y, x = y → Module.indistinguishable (flushed mod) mod x y :=
+by
+  intro _ _ h
+  subst_vars
+  constructor
+  . intro _ _ _ h
+    apply bll' at h
+    obtain ⟨s, _, _⟩ := h
+    use s
+  . intro _ new_i _ _
+    dsimp [flushed] at *
+    use new_i
+
+theorem refines₀ {Ident S: Type _} [DecidableEq Ident] (mod: Module Ident S): flushed mod ⊑_{Eq} mod := by
+  unfold Module.refines_φ
+  intro init_i init_s Hφ
+  --unfold φ₁ at Hφ;
+  subst_vars
+  apply Module.comp_refines.mk
+  -- input rules
+  . intro _ mid_i v h
+    apply bll' at h
+    obtain ⟨s', _, _, _⟩ := h
+    use s', mid_i
+  -- output rules
+  . intro _ mid_i _ _
+    use mid_i
+    and_intros
+    . simp only [flushed, eq_mp_eq_cast, cast_eq] at *
+      assumption
+    . rfl
+  -- internal rules
+  . intro _ mid_i _ _
+    use mid_i
+    and_intros
+    . apply existSR.step
+      . simp only [flushed, List.not_mem_nil] at *
+      . assumption
+      . apply existSR_reflexive
+    . rfl
+
+---------------------------------------------------------------------------------------------------
+------------------------- PROOF THAT A MODULE REFINES THE FLUSHED VERSION -------------------------
+---------------------------------------------------------------------------------------------------
+
+def φ₂ {S: Type _} (rules: List (S → S → Prop))(lhs : S) (rhs : S) : Prop :=
+  -- By using the internal rules of the non-flushed version, we should reach the flushed one
+  existSR rules lhs rhs ∧ pf rules rhs
+
+theorem refines₀' {Ident S: Type _} [DecidableEq Ident] (mod: Module Ident S): mod ⊑_{φ₂ mod.internals} flushed mod := by
+  unfold Module.refines_φ
+  intro init_i init_s Hφ
+  sorry
+
+theorem bla {α : Type _} {a c : α} (b : List α) :
+  a ∈ b → c ∈ b → b.length = 1 → a = c :=
+by
+  intro ha hc hl
+  cases b with
+  | nil => exfalso; rw [List.length_nil] at hl; contradiction
+  | cons x xs => cases xs with
+    | nil =>
+      simp at *; subst_vars; rfl
+    | cons x' xs' =>
+      repeat rw [List.length_cons] at hl
+      rw [Nat.add_eq_right] at hl
+      rw [Nat.add_eq_zero] at hl
+      cases ‹ _ ∧ _ ›
+      contradiction
+
+theorem hamza₂: ∀ rule ∈ (lhsModule T₁ T₂ T₃).internals, ∀ ident s₁ v s₂ s₃,
+  ((lhsModule T₁ T₂ T₃).inputs.getIO ident).snd s₁ v s₂
+  → ∃ s₄, ((lhsModule T₁ T₂ T₃).inputs.getIO ident).snd s₃ v s₄ :=
+by
+  intro rule _ ident _ _ _ ⟨⟨_ , _⟩, ⟨_ , _⟩⟩ _
+  by_cases HContains: ((lhsModule T₁ T₂ T₃).inputs.contains ident)
+  . -- TODO: Extract it as it's own theorem
+    simp [lhsModule] at HContains
+    rcases HContains with h | h | h <;> subst h
+    all_goals
+      apply Exists.intro ⟨⟨_ , _⟩, ⟨_ , _⟩⟩
+      dsimp [lhsModule]
+      rw [PortMap.rw_rule_execution]
+      simp <;> and_intros <;> rfl
+  . exfalso; exact (PortMap.getIO_not_contained_false (by assumption) HContains)
+
+theorem b': ∀ rule ∈ (lhsModule T₁ T₂ T₃).internals, ∀ ident s₁ v s₂ s₃,
+  ((lhsModule T₁ T₂ T₃).outputs.getIO ident).snd s₁ v s₂
+  → rule s₁ s₃
+  → ∃ s₄, ((lhsModule T₁ T₂ T₃).outputs.getIO ident).snd s₃ v s₄ :=
+by
+  intro rule hᵣ ident ⟨⟨_ , _⟩, ⟨_ , _⟩⟩ v ⟨⟨_ , _⟩, ⟨_ , _⟩⟩ ⟨⟨_ , _⟩, ⟨_ , _⟩⟩ h₁ h₂
+  by_cases HContains: ((lhsModule T₁ T₂ T₃).outputs.contains ident)
+  . simp [lhsModule] at HContains
+    simp [lhsModule] at hᵣ
+    unfold lhsModule at h₁
+    rw [PortMap.rw_rule_execution] at h₁
+    subst_vars
+    dsimp at *
+    obtain ⟨_, _, _, _, _, _, ⟨⟨_ , _⟩ , _⟩, ⟨_ , _⟩, _⟩ := h₂
+    simp at *; subst_vars
+    repeat cases ‹_ ∧ _›
+    subst_vars; simp
+    -- extract this as it's own lemma
+    apply Exists.intro ⟨⟨_ , _⟩, ⟨_ , _⟩⟩
+    dsimp [lhsModule]
+    rw [PortMap.rw_rule_execution]
+    dsimp <;> and_intros <;> rfl
+  . exfalso; exact (PortMap.getIO_not_contained_false h₁ HContains)
+
+theorem b'₃: ∀ rule ∈ (lhsModule T₁ T₂ T₃).internals, ∀ ident s₁ v s₂ s₃,
+  ((lhsModule T₁ T₂ T₃).outputs.getIO ident).snd s₁ v s₂
+  → rule s₁ s₃
+  → ∃ s₄, rule s₂ s₄ :=
+by
+  intro rule h₁ ident ⟨⟨_ , _⟩, ⟨_ , _⟩⟩ _ ⟨⟨_ , _⟩, ⟨_ , _⟩⟩ ⟨⟨_ , _⟩, ⟨_ , _⟩⟩ h₃ h₂
+  by_cases HContains: ((lhsModule T₁ T₂ T₃).outputs.contains ident)
+  . simp [lhsModule] at HContains; subst HContains
+    unfold lhsModule at h₃
+    rw [PortMap.rw_rule_execution] at h₃
+    dsimp at h₃
+    simp [lhsModule] at h₁; subst h₁
+    obtain ⟨_, _, _, _, _, _, ⟨⟨_ , _⟩ , _⟩, ⟨_ , _⟩, _⟩ := h₂
+    simp at *; subst_vars
+    repeat cases ‹ _ ∧ _ ›
+    subst_vars; simp
+    apply Exists.intro ⟨⟨_ , _⟩, ⟨_ , _⟩⟩; and_intros <;> rfl
+  . exfalso; exact (PortMap.getIO_not_contained_false (by assumption) HContains)
+
+theorem b'₂: ∀ rule ∈ (lhsModule T₁ T₂ T₃).internals, ∀ ident s₁ v s₂ s₃ s₄,
+  ((lhsModule T₁ T₂ T₃).outputs.getIO ident).snd s₁ v s₂
+  → ((lhsModule T₁ T₂ T₃).outputs.getIO ident).snd s₃ v s₄
+  → rule s₁ s₃
+  → rule s₂ s₄ :=
+by
+  intro rule h₁ ident ⟨⟨_ , _⟩, ⟨_ , _⟩⟩ _ ⟨⟨_ , _⟩, ⟨_ , _⟩⟩ ⟨⟨_ , _⟩, ⟨_ , _⟩⟩ ⟨⟨_ , _⟩, ⟨_ , _⟩⟩ h₂ h₃ h₄
+  by_cases HContains: ((lhsModule T₁ T₂ T₃).outputs.contains ident)
+  . -- process and unfold the fact that use the internal rule
+    simp [lhsModule] at h₁; subst h₁; dsimp at h₄; dsimp
+    -- process the fact we use the output rule
+    simp [lhsModule] at HContains; subst HContains
+    dsimp [lhsModule] at h₂
+    rw [PortMap.rw_rule_execution] at h₂
+    dsimp at h₂
+    dsimp [lhsModule] at h₃
+    rw [PortMap.rw_rule_execution] at h₃
+    dsimp at h₃
+    obtain ⟨_, _, _, _, _, _, _⟩ := h₄
+    repeat
+      cases ‹_ ∧ _›
+      try simp at *
+      try subst_vars
+    simp
+  . exfalso; exact (PortMap.getIO_not_contained_false (by assumption) HContains)
+
+theorem b'₅: ∀ rule ∈ (lhsModule T₁ T₂ T₃).internals, ∀ ident s₁ v s₂ s₃ s₄,
+  ((lhsModule T₁ T₂ T₃).inputs.getIO ident).snd s₁ v s₂
+  → ((lhsModule T₁ T₂ T₃).inputs.getIO ident).snd s₃ v s₄
+  → rule s₁ s₃
+  → rule s₂ s₄ :=
+by
+  intro rule hᵣ ident ⟨⟨_ , _⟩, ⟨_ , _⟩⟩ _ ⟨⟨_ , _⟩, ⟨_ , _⟩⟩ ⟨⟨_ , _⟩, ⟨_ , _⟩⟩ ⟨⟨_ , _⟩, ⟨_ , _⟩⟩ hᵢ hᵢ' hᵣ'
+  by_cases HContains: ((lhsModule T₁ T₂ T₃).inputs.contains ident)
+  . -- extract the names of the ports
+    simp [lhsModule] at HContains
+    -- work on the internal rules
+    simp [lhsModule] at hᵣ <;> subst hᵣ
+    obtain ⟨_, _, _, _, _, _, ⟨⟨_ , _⟩ , _⟩, ⟨_ , _⟩, _⟩ := hᵣ'
+    simp at * <;> (repeat cases ‹_ ∧ _›) <;> subst_vars
+    -- work on each input rule
+    rcases HContains with h | h | h <;> subst h
+    all_goals
+      dsimp [lhsModule] at hᵢ hᵢ'
+      rw [PortMap.rw_rule_execution] at hᵢ hᵢ'
+      dsimp at hᵢ hᵢ'
+      obtain ⟨⟨_ , _⟩, _, _⟩ := hᵢ
+      obtain ⟨⟨_ , _⟩, _, _⟩ := hᵢ'
+      subst_vars
+      simp
+  . exfalso; exact (PortMap.getIO_not_contained_false (by assumption) HContains)
+
+theorem b'₄: ∀ rule ∈ (lhsModule T₁ T₂ T₃).internals, ∀ ident s₁ v s₂ s₃ s₄,
+  ((lhsModule T₁ T₂ T₃).outputs.getIO ident).snd s₁ v s₂
+  → rule s₁ s₃
+  → rule s₂ s₄
+  → ((lhsModule T₁ T₂ T₃).outputs.getIO ident).snd s₃ v s₄ :=
+by
+  intro rule h₁ ident ⟨⟨_ , _⟩, ⟨_ , _⟩⟩ _ ⟨⟨_ , _⟩, ⟨_ , _⟩⟩ ⟨⟨_ , _⟩, ⟨_ , _⟩⟩ ⟨⟨_ , _⟩, ⟨_ , _⟩⟩ h₂ h₃ h₄
+  by_cases HContains: ((lhsModule T₁ T₂ T₃).outputs.contains ident)
+  . -- process and unfold the fact that use the internal rule
+    simp [lhsModule] at h₁; subst h₁; dsimp at h₃ h₄
+    -- process the fact we use the output rule
+    simp [lhsModule] at HContains; subst HContains
+    dsimp [lhsModule] at h₂
+    rw [PortMap.rw_rule_execution] at h₂
+    dsimp at h₂
+    dsimp [lhsModule]
+    rw [PortMap.rw_rule_execution]
+    dsimp
+    obtain ⟨_, _, _, _, _, _, _⟩ := h₃
+    obtain ⟨_, _, _, _, _, _, _⟩ := h₄
+    repeat
+      cases ‹_ ∧ _›
+      try simp at *
+      try subst_vars
+    and_intros <;> rfl
+  . exfalso; exact (PortMap.getIO_not_contained_false (by assumption) HContains)
+
+theorem b'': ∀ ident s₁ v s₂ s₃,
+  existSR (lhsModule T₁ T₂ T₃).internals s₁ s₃
+  → ((lhsModule T₁ T₂ T₃).outputs.getIO ident).snd s₁ v s₂
+  → ∃ s₄, ((lhsModule T₁ T₂ T₃).outputs.getIO ident).snd s₃ v s₄ :=
+by
+  intros ident s₁ v s₂ s₃ h _
+  induction h generalizing s₂ with
+  | done => use s₂
+  | step init mid final rule _ _ _ ih =>
+    have: (∃ s₄, ((lhsModule T₁ T₂ T₃).outputs.getIO ident).snd mid v s₄) := by
+      apply b' <;> assumption
+    obtain ⟨s, h⟩ := this
+    specialize ih s
+    apply ih
+    assumption
+
+theorem hamza: ∀ ident s₁ v s₂ s₃,
+  existSR (lhsModule T₁ T₂ T₃).internals s₁ s₃
+  → ((lhsModule T₁ T₂ T₃).inputs.getIO ident).snd s₁ v s₂
+  → ∃ s₄, ((lhsModule T₁ T₂ T₃).inputs.getIO ident).snd s₃ v s₄ :=
+by
+  intros ident s₁ v s₂ s₃ h _
+  induction h generalizing s₂ with
+  | done => use s₂
+  | step init mid final rule _ _ _ ih =>
+    have: (∃ s₄, ((lhsModule T₁ T₂ T₃).inputs.getIO ident).snd mid v s₄) := by
+      apply hamza₂ <;> assumption
+    obtain ⟨s, h⟩ := this
+    specialize ih s
+    apply ih
+    assumption
+
+-- "if we pop an output from a flushed state, the resulting state is also flushed"
+theorem b₂: ∀ ident s₁ v s₂,
+  pf (lhsModule T₁ T₂ T₃).internals s₁
+  → ((lhsModule T₁ T₂ T₃).outputs.getIO ident).snd s₁ v s₂
+  →  pf (lhsModule T₁ T₂ T₃).internals s₂ :=
+by
+  intro ident ⟨⟨_ , _⟩, ⟨_ , _⟩⟩ _ ⟨⟨_ , _⟩, ⟨_ , _⟩⟩ hpf h₁
+  apply pf_is_partially_flushed at hpf
+  apply partially_flushed_is_pf
+  by_cases HContains: ((lhsModule T₁ T₂ T₃).outputs.contains ident)
+  . simp [lhsModule] at HContains <;> subst HContains
+    dsimp [lhsModule] at h₁
+    rw [PortMap.rw_rule_execution] at h₁
+    repeat
+      cases ‹_ ∧ _›; simp at *
+    subst_vars
+    cases hpf <;> constructor
+  . exfalso; exact (PortMap.getIO_not_contained_false (by assumption) HContains)
+
+theorem b₃: ∀ ident s₁ v s₂ s₃ s₄,
+  existSR (lhsModule T₁ T₂ T₃).internals s₁ s₃
+  → ((lhsModule T₁ T₂ T₃).outputs.getIO ident).snd s₁ v s₂
+  → ((lhsModule T₁ T₂ T₃).outputs.getIO ident).snd s₃ v s₄
+  → existSR (lhsModule T₁ T₂ T₃).internals s₂ s₄:=
+by
+  intros ident s₁ v s₂ s₃ s₄ h _ _
+  induction h generalizing s₂ with
+  | done =>
+    have: s₂ = s₄ := by
+      apply output_rules_deterministic <;> assumption
+    subst this
+    apply existSR_reflexive
+  | step init mid _ rule _ _ _ ih =>
+    have: (∃ mid', rule s₂ mid' ∧ existSR (lhsModule T₁ T₂ T₃).internals mid' s₄) := by
+      have: (∃ m, rule s₂ m) := by
+        apply b'₃ <;> assumption
+      obtain ⟨m, _⟩ := this
+      use m
+      and_intros
+      . assumption
+      . apply ih
+        . apply b'₄ _ _ _ init _ s₂ <;> assumption
+        . assumption
+    obtain ⟨mid', _, _⟩ := this
+    apply existSR_transitive _ _ mid'
+    . apply existSR_single_step <;> and_intros <;> assumption
+    . assumption
+
+theorem refinesfₗₕₛ: lhsModule T₁ T₂ T₃ ⊑_{φ₂ (lhsModule T₁ T₂ T₃).internals} flushed (lhsModule T₁ T₂ T₃) := by
+  unfold Module.refines_φ
+  intro init_i init_s ⟨Hφ, hpf⟩
+  apply Module.comp_refines.mk <;> unfold φ₂ at *
+  -- input rules
+  . intro ident mid_i v h
+    induction Hφ generalizing mid_i with
+    | done =>
+      apply bll'₂ at h
+      obtain ⟨s, _, _, _⟩ := h
+      use s, s
+      and_intros <;> try assumption
+      apply existSR_reflexive
+    | step init mid _ rule _ _ _ ih =>
+      specialize ih (by assumption)
+      have: ∃ s, ((lhsModule T₁ T₂ T₃).inputs.getIO ident).snd mid v s := by
+        apply hamza <;> try assumption
+        apply existSR_single_step <;> and_intros <;> assumption
+      obtain ⟨s, _⟩ := this
+      specialize ih s (by assumption)
+      obtain ⟨s₁, s₂, _, _, _, _⟩ := ih
+      use s₁, s₂
+      and_intros <;> try assumption
+      rename_i a _ _
+      dsimp [flushed] at a
+      apply existSR_norules at a; subst a
+      have: rule mid_i s := by apply b'₅ <;> assumption
+      apply (existSR_single_step' (lhsModule T₁ T₂ T₃).internals) at this <;> try assumption
+      apply existSR_transitive (lhsModule T₁ T₂ T₃).internals _ s <;> assumption
+  -- output rules
+  . intro _ mid_i _ h
+    dsimp [flushed] at *
+    apply b'' at Hφ
+    specialize Hφ h
+    obtain ⟨mid_s, _⟩ := Hφ
+    use mid_s
+    and_intros <;> try assumption
+    . apply b₃ <;> assumption
+    . apply b₂ <;> assumption
+  -- internal rules
+  . intros rule mid_i HRuleInInternal _
+    use init_s
+    and_intros
+    . apply existSR_reflexive
+    . cases Hφ with
+      | done =>
+        unfold pf at hpf
+        specialize hpf rule (by exact HRuleInInternal) mid_i
+        contradiction
+      | step _ mid _ rule' _ _ _ =>
+          have: rule = rule' := by
+            apply bla at HRuleInInternal
+            specialize HRuleInInternal (by assumption) (by dsimp[lhsModule])
+            assumption
+          subst this
+          have: mid_i = mid := by
+            apply internal_rules_deterministic <;> assumption
+          subst this <;> assumption
+    . assumption
+
+---------------------------------------------------------------------------------------------------
+----------------------------- PROOF THAT THE FLUSHED LHS REFINES LHS ------------------------------
+---------------------------------------------------------------------------------------------------
+
+set_option maxHeartbeats 0 in -- TODO: Don't change the heartbeat
+theorem φ₁_indistinguishable :
+  ∀ x y, x = y → Module.indistinguishable (flushed (lhsModule T₁ T₂ T₃)) (lhsModule T₁ T₂ T₃) x y := by
+  intro x y Hφ
+  subst_vars
+  constructor <;> intro ident new_i v H
+  . by_cases HContains: ((lhsModule T₁ T₂ T₃).inputs.contains ident)
+    . -- Extract the input ports from the module
+      simp [lhsModule] at HContains
+      rcases HContains with _ | _ | _
+      all_goals
+        subst_vars
+        unfold flushed lhsModule at H
+        rw [PortMap.rw_rule_execution (by simp []; rfl)] at H
+        dsimp at H
+        obtain ⟨s', _, _⟩ := H
+        use s'
+        -- Execute the rule in the goal
+        simp [lhsModule, PortMap.rw_rule_execution]
+        assumption
+    . exfalso; exact (PortMap.getIO_not_contained_false H HContains)
+  . use new_i
+    simp only [eq_mp_eq_cast, cast_eq]
+    simp only [flhsModule, flushed] at H
+    exact H
+
+-- FROM THE MORE GENERAL PROOF
+theorem φ₁_indistinguishableₗₕₛ'' :
+  ∀ x y, x = y → Module.indistinguishable (flushed (lhsModule T₁ T₂ T₃)) (lhsModule T₁ T₂ T₃) x y :=
+by
+  exact φ₁_indistinguishable' (lhsModule T₁ T₂ T₃)
+
+-- DIRECT PROOF
+theorem refinesₗₕₛ: flushed (lhsModule T₁ T₂ T₃) ⊑_{Eq} lhsModule T₁ T₂ T₃ := by
+  unfold Module.refines_φ
+  intro init_i init_s Hφ
+  subst_vars
+  apply Module.comp_refines.mk
+  -- input rules
+  . intro ident mid_i v Hrule
+    by_cases HContains: (flushed (lhsModule T₁ T₂ T₃)).inputs.contains ident
+    . simp [flushed, lhsModule] at HContains
+      unfold flushed lhsModule at Hrule
+      rcases HContains with _ | _ | _ <;> subst_vars
+      all_goals
+        dsimp [PortMap.rw_rule_execution] at Hrule
+        obtain ⟨s', _, _, _⟩ := Hrule
+        use s', mid_i
+        apply And.intro
+        . unfold flushed lhsModule
+          simp [PortMap.rw_rule_execution]
+          simp at *
+          assumption
+        . apply And.intro
+          . -- assumption (can I avoid the unfolding inside the existSR that happens earlier)
+            unfold lhsModule
+            dsimp; assumption
+          . rfl
+    . exfalso; exact (PortMap.getIO_not_contained_false Hrule HContains)
+  -- output rules
+  . intro _ mid_i _ _
+    use mid_i
+    and_intros
+    . simp only [flushed, eq_mp_eq_cast, cast_eq] at *
+      assumption
+    . rfl
+  -- internal rules
+  . intro _ mid_i _ _
+    use mid_i
+    and_intros
+    . apply existSR.step
+      . simp only [flushed, List.not_mem_nil] at *
+      . assumption
+      . apply existSR_reflexive
+    . rfl
+
+-- FROM THE MORE GENERAL PROOF
+theorem refinesₗₕₛ': flushed (lhsModule T₁ T₂ T₃) ⊑_{Eq} lhsModule T₁ T₂ T₃ := by
+  exact refines₀ (lhsModule T₁ T₂ T₃)
+
+---------------------------------------------------------------------------------------------------
+----------------------------- PROOF THAT THE FLUSHED RHS REFINES RHS ------------------------------
+---------------------------------------------------------------------------------------------------
+
+-- DIRECT PROOF
+set_option maxHeartbeats 0 in
+theorem refinesᵣₕₛ: flushed (rhsModule T₁ T₂ T₃) ⊑_{Eq} rhsModule T₁ T₂ T₃ := by
+  unfold Module.refines_φ
+  intro init_i init_s Hφ
+  subst_vars
+  apply Module.comp_refines.mk
+  -- input rules
+  . intro ident mid_i v Hrule
+    by_cases HContains: (flushed (rhsModule T₁ T₂ T₃)).inputs.contains ident
+    . simp [flushed, rhsModule] at HContains
+      unfold flushed rhsModule at Hrule
+      rcases HContains with _ | _ | _ <;> subst_vars
+      all_goals
+        dsimp [PortMap.rw_rule_execution] at Hrule
+        obtain ⟨s', _, _, _⟩ := Hrule
+        use s', mid_i
+        apply And.intro
+        . unfold flushed rhsModule
+          simp [PortMap.rw_rule_execution]
+          simp at *
+          assumption
+        . apply And.intro
+          . -- assumption (can I avoid the unfolding inside the existSR that happens earlier)
+            unfold rhsModule
+            dsimp; assumption
+          . rfl
+    . exfalso; exact (PortMap.getIO_not_contained_false Hrule HContains)
+  -- output rules
+  . intro _ mid_i _ _
+    use mid_i
+    and_intros
+    . simp only [flushed, eq_mp_eq_cast, cast_eq] at *
+      assumption
+    . rfl
+  -- internal rules
+  . intro _ mid_i _ _
+    use mid_i
+    and_intros
+    . apply existSR.step
+      . simp only [flushed, List.not_mem_nil] at *
+      . assumption
+      . apply existSR_reflexive
+    . rfl
+
+-- FROM THE MORE GENERAL PROOF
+theorem refinesᵣₕₛ': flushed (rhsModule T₁ T₂ T₃) ⊑_{Eq} rhsModule T₁ T₂ T₃ := by
+  exact refines₀ (rhsModule T₁ T₂ T₃)
+
+---------------------------------------------------------------------------------------------------
+------------------------- PROOF THAT THE FLUSHED RHS REFINES FLUSHED LHS --------------------------
+---------------------------------------------------------------------------------------------------
+
+-- TODO: Some of the φ used in this proof can be simplified, specifically when using φ₁
+theorem refines₅: flushed (rhsModule T₁ T₂ T₃) ⊑_{λ a b => ∃ c, a = c ∧ (∃ d, φ c d ∧ φ₂ ((lhsModule T₁ T₂ T₃).internals) d b)} flushed (lhsModule T₁ T₂ T₃) := by
+  have: flushed (rhsModule T₁ T₂ T₃) ⊑_{Eq}                                (rhsModule T₁ T₂ T₃)         := by
+    exact refines₀ (rhsModule T₁ T₂ T₃)
+  have: (rhsModule T₁ T₂ T₃)         ⊑_{φ}                                 (lhsModule T₁ T₂ T₃)         := by
+    exact refines
+  have: (lhsModule T₁ T₂ T₃)         ⊑_{φ₂ (lhsModule T₁ T₂ T₃).internals} flushed (lhsModule T₁ T₂ T₃) := by
+    exact refines₀' (lhsModule T₁ T₂ T₃)
+
+  haveI: MatchInterface (rhsModule T₁ T₂ T₃) (flushed (lhsModule T₁ T₂ T₃)) := by
+    apply MatchInterface_transitive (lhsModule T₁ T₂ T₃) <;> infer_instance
+
+  have: (rhsModule T₁ T₂ T₃) ⊑_{λ a b => ∃ c, φ a c ∧ φ₂ ((lhsModule T₁ T₂ T₃).internals) c b} flushed (lhsModule T₁ T₂ T₃) := by
+    apply Module.refines_φ_transitive _ _ (lhsModule T₁ T₂ T₃) <;> assumption
+  apply Module.refines_φ_transitive _ _ (rhsModule T₁ T₂ T₃) <;> assumption
 
 end DataflowRewriter.JoinRewrite
