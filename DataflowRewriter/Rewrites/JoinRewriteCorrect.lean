@@ -353,9 +353,163 @@ def lhsModule' : StringModule (lhsModuleType T₁ T₂ T₃) :=
     init_state := fun _ => True,
   }
 
-theorem refines {T: Type _} [DecidableEq T]: rhsModule T₁ T₂ T₃ ⊑_{φ} lhsModule T₁ T₂ T₃ := by
+inductive empty_internal: lhsModuleType T₁ T₂ T₃ -> Prop where
+| mk: ∀ q₁ q₂ q₃, empty_internal ⟨⟨[], q₃⟩, ⟨q₁, q₂⟩⟩
+
+inductive single_internal: lhsModuleType T₁ T₂ T₃ -> Prop where
+| mk: ∀ v q₁ q₂ q₃, single_internal ⟨⟨[v], q₃⟩, ⟨q₁, q₂⟩⟩
+
+theorem existSR_single_step {S : Type _} {rules : List (S → S → Prop)}:
+  ∀ s s' rule, rule ∈ rules ∧ rule s s' → existSR rules s s' := by
+    intro s s' rule ⟨_, _⟩
+    apply existSR.step s s' s' rule
+    . assumption
+    . assumption
+    . exact existSR_reflexive
+
+theorem existSR_single_step' {S : Type _} (rules : List (S → S → Prop)):
+  ∀ s s', ∀ rule ∈ rules, rule s s' → existSR rules s s' := by
+    intros
+    apply existSR_single_step <;> and_intros <;> assumption
+
+theorem b:
+  ∀ s, ∃ s', existSR (lhsModule T₁ T₂ T₃).internals s s' :=
+by
+  intro s; use s; apply existSR_reflexive
+
+theorem f: ∀ ident,
+  ((rhsModule T₁ T₂ T₃).outputs.getIO ident).fst = ((lhsModule T₁ T₂ T₃).outputs.getIO ident).fst :=
+by
+  sorry
+
+def ψ₂ (rhs : rhsModuleType T₁ T₂ T₃) (lhs : lhsModuleType T₁ T₂ T₃) :=
+  ψ rhs lhs ∧ empty_internal lhs
+
+-- TODO: maybe we can make the proof better?
+theorem f₁: ∀ ident i₁ i₂ v s₁, ∀ rule ∈ (lhsModule T₁ T₂ T₃).internals,
+  ψ₂ i₁ s₁
+  → ((rhsModule T₁ T₂ T₃).outputs.getIO ident).snd i₁ v i₂
+  → ∃ s₂, rule s₁ s₂ :=
+by
+  intro ident ⟨⟨_, _⟩,⟨_, _⟩⟩ ⟨⟨_, _⟩,⟨_, _⟩⟩ v ⟨⟨_, _⟩,⟨_, _⟩⟩ rule h₁ h₂ h₃
+  by_cases HContains: ((rhsModule T₁ T₂ T₃).outputs.contains ident)
+  . -- Fetch the output rule
+    simp [rhsModule] at HContains; subst HContains
+    obtain ⟨hψ, h₂⟩ := h₂
+    cases h₂
+    dsimp [ψ] at hψ
+    obtain ⟨_, _, _⟩ := hψ
+    subst_vars
+    -- work on h₃
+    unfold rhsModule at h₃
+    rw [PortMap.rw_rule_execution] at h₃
+    simp at h₃
+    repeat
+      cases ‹_ ∧ _›
+    subst_vars
+    -- work on h₁
+    simp [lhsModule] at h₁; subst h₁
+    dsimp
+    apply Exists.intro ⟨⟨_, _⟩,⟨_, _⟩⟩
+    repeat
+      apply Exists.intro
+    simp
+    and_intros <;> rfl
+  . exfalso; exact (PortMap.getIO_not_contained_false (by assumption) HContains)
+
+theorem f': ∀ s₁ s₂, ∀ rule ∈ (lhsModule T₁ T₂ T₃).internals,
+  empty_internal s₁
+  → rule s₁ s₂
+  → single_internal s₂ :=
+by
+  intro ⟨⟨_, _⟩,⟨_, _⟩⟩ ⟨⟨_, _⟩,⟨_, _⟩⟩ rule h₁ h₂ h₃
+  simp [lhsModule] at h₁
+  subst h₁
+
+  cases h₂
+  dsimp at h₃
+  simp at h₃
+  obtain ⟨_, _, _, _, _, _, _⟩ := h₃
+  repeat
+    cases ‹_ ∧ _›
+  subst_vars
+  rw [List.nil_append]
+  constructor
+
+theorem f'': ∀ ident i₁ i₂ v s₁,
+  ψ i₁ s₁
+  → single_internal s₁
+  → ((rhsModule T₁ T₂ T₃).outputs.getIO ident).snd i₁ v i₂
+  → ∃ s₂, ((lhsModule T₁ T₂ T₃).outputs.getIO ident).snd s₁ ((f ident).mp v) s₂ :=
+by
+  intro ident ⟨⟨_, _⟩,⟨_, _⟩⟩ ⟨⟨_, _⟩,⟨_, _⟩⟩ _ ⟨⟨_, _⟩,⟨_, _⟩⟩ h₁ h₂ h₃
+  by_cases HContains: ((rhsModule T₁ T₂ T₃).outputs.contains ident)
+  . simp [rhsModule] at HContains; subst HContains
+    unfold rhsModule at h₃; rw [PortMap.rw_rule_execution] at h₃; simp at h₃
+    cases h₂
+    dsimp [ψ] at h₁
+    repeat
+      cases ‹_ ∧ _›
+    subst_vars
+
+    unfold lhsModule
+    apply Exists.intro ⟨⟨_, _⟩,⟨_, _⟩⟩
+    rw [PortMap.rw_rule_execution]; dsimp
+    and_intros
+    . sorry -- TODO: TRIVIAL, BUT ANNOYING TO WRITE
+    . rfl
+    . rfl
+    sorry -- TODO: REMOVE THIS, ONLY HERE TO SATISFY THE GOAL OF THE TYPE FOR EXISTANTIALS
+  . exfalso; exact (PortMap.getIO_not_contained_false (by assumption) HContains)
+
+theorem f₃: ∀ ident s₁ s₂ v,
+  single_internal s₁
+  → ((lhsModule T₁ T₂ T₃).outputs.getIO ident).snd s₁ v s₂
+  → empty_internal s₂ :=
+by
+  intro ident ⟨⟨_, _⟩,⟨_, _⟩⟩ ⟨⟨_, _⟩,⟨_, _⟩⟩ _ h₁ h₂
+  by_cases HContains: ((lhsModule T₁ T₂ T₃).outputs.contains ident)
+  . -- fetch the single output port ident
+    simp [lhsModule] at HContains; subst HContains
+    unfold lhsModule at h₂
+    rw [PortMap.rw_rule_execution] at h₂
+    dsimp at h₂
+    simp at h₂
+    repeat
+      cases ‹_ ∧ _›
+    subst_vars
+    cases h₁
+    constructor
+  . exfalso; exact (PortMap.getIO_not_contained_false (by assumption) HContains)
+
+theorem f₄: ∀ ident i₁ i₂ v s₁ s₂,
+  ψ i₁ s₁
+  → ((rhsModule T₁ T₂ T₃).outputs.getIO ident).snd i₁ v i₂
+  → ((lhsModule T₁ T₂ T₃).outputs.getIO ident).snd s₁ ((f ident).mp v) s₂
+  → ψ i₂ s₂ :=
+by
+  intro ident ⟨⟨_, _⟩, ⟨_, _⟩, _⟩ ⟨⟨_, _⟩, ⟨_, _⟩, _⟩ v ⟨⟨_, _⟩, ⟨_, _⟩⟩ ⟨⟨_, _⟩, ⟨_, _⟩⟩ h₁ h₂ h₃
+  by_cases HContains: ((rhsModule T₁ T₂ T₃).outputs.contains ident)
+  . simp [rhsModule] at HContains; subst HContains
+    unfold rhsModule at h₂
+    rw [PortMap.rw_rule_execution] at h₂; simp at h₂
+    simp at *
+    repeat
+      cases ‹_ ∧ _›
+    simp at *
+    cases ‹_ ∧ _›
+    subst_vars
+
+    dsimp [ψ]
+    and_intros
+    . simp at *; assumption
+    . simp at *; assumption
+    . simp at *; assumption
+  . exfalso; exact (PortMap.getIO_not_contained_false h₃ HContains)
+
+theorem refines {T: Type _} [DecidableEq T]: rhsModule T₁ T₂ T₃ ⊑_{ψ₂} lhsModule T₁ T₂ T₃ := by
   unfold Module.refines_φ
-  intro init_i init_s Hφ
+  intro init_i init_s Hψ
   apply Module.comp_refines.mk
   -- input rules
   . intro ident i s a
@@ -363,11 +517,13 @@ theorem refines {T: Type _} [DecidableEq T]: rhsModule T₁ T₂ T₃ ⊑_{φ} l
     . obtain ⟨⟨sj2l, sj2r⟩, ⟨sj1l, sj1r⟩⟩ := init_s
       obtain ⟨⟨_, _⟩, ⟨_, _⟩, _⟩ := init_i
       obtain ⟨⟨_, _⟩, ⟨_, _⟩, _⟩ := i
-      unfold rhsModule at HContains; simp at HContains
 
-      rcases HContains with h | h | h
-        <;> subst_vars <;> simp <;> rw [PortMap.rw_rule_execution] at a <;> simp at a
-      . obtain ⟨⟨_, _⟩, ⟨_, _⟩, _⟩ := a
+      unfold rhsModule at HContains; simp at HContains
+      rcases HContains with h | h | h <;> subst_vars <;> simp
+      . unfold rhsModule at a
+        rw [PortMap.rw_rule_execution] at a
+        dsimp at a
+        obtain ⟨⟨_, _⟩, ⟨_, _⟩⟩ := a
         subst_vars
         have_hole heq : ((rhsModule T₁ T₂ T₃).inputs.getIO { inst := InstIdent.top, name := "i_0" }).fst = _ := by dsimp [reducePortMapgetIO]
         -- We construct the almost_mid_s manually
@@ -375,169 +531,109 @@ theorem refines {T: Type _} [DecidableEq T]: rhsModule T₁ T₂ T₃ ⊑_{φ} l
         apply And.intro
         . -- verify that the rule holds
           rw [PortMap.rw_rule_execution (by dsimp [reducePortMapgetIO])]
-          simp
+          simp -- TODO: Remove this simp here
         . -- verify that the invariant holds when we flush the system
-          obtain ⟨s', ⟨_, _⟩⟩ := something' ⟨⟨sj2l, sj2r⟩, sj1l ++ [heq.mp s], sj1r⟩ -- We flush the system to reach s'
-          use s'
+          use ⟨⟨sj2l, sj2r⟩, sj1l ++ [heq.mp s], sj1r⟩
           apply And.intro
-          . assumption
-          . unfold φ at *
-            apply And.intro
-            . apply something _ (⟨sj2l, sj2r⟩, sj1l ++ [heq.mp s], sj1r) s'
-              . obtain ⟨Hψ, _⟩ := Hφ
-                unfold ψ at *; simp at *
-                obtain ⟨_, _, _⟩ := Hψ
-                subst_vars
-                and_intros
-                . simp only [<- List.append_assoc, List.append_left_inj]
-                  assumption
-                . assumption
-                . rfl
-              . assumption
+          . apply existSR_reflexive
+          . dsimp [ψ₂, ψ] at Hψ
+            obtain ⟨⟨h, _, _⟩, hₑ⟩ := Hψ
+            dsimp [ψ₂, ψ]
+            and_intros
+            . rw [<- List.append_assoc, <- List.append_assoc, h]
             . assumption
-      . obtain ⟨⟨⟨_, _⟩, _⟩, ⟨_, _⟩, _⟩ := a
+            . assumption
+            . cases hₑ; constructor
+      . unfold rhsModule at a
+        rw [PortMap.rw_rule_execution] at a
+        dsimp at a
+        obtain ⟨⟨⟨_, _⟩, _⟩, ⟨_, _⟩⟩ := a
         subst_vars
-        reduce at s
-        use ⟨⟨sj2l, sj2r⟩, ⟨sj1l, sj1r ++ [s]⟩⟩
+        have_hole heq : ((rhsModule T₁ T₂ T₃).inputs.getIO { inst := InstIdent.top, name := "i_1" }).fst = _ := by dsimp [reducePortMapgetIO]
+        use ⟨⟨sj2l, sj2r⟩, ⟨sj1l, sj1r ++ [heq.mp s]⟩⟩
         apply And.intro
         . rw [PortMap.rw_rule_execution (by dsimp [reducePortMapgetIO])]; simp
-        . obtain ⟨s', ⟨_, _⟩⟩ := something' ⟨⟨sj2l, sj2r⟩, sj1l, sj1r ++ [s]⟩
-          use s'
+        . use ⟨⟨sj2l, sj2r⟩, sj1l, sj1r ++ [heq.mp s]⟩
           apply And.intro
-          . assumption
-          . unfold φ at *
-            apply And.intro
-            . apply something _ (⟨sj2l, sj2r⟩, sj1l, sj1r ++ [s]) s'
-              . obtain ⟨Hψ, _⟩ := Hφ
-                unfold ψ at *; simp at *
-                obtain ⟨_, _, _⟩ := Hψ
-                subst_vars
-                and_intros
-                . assumption
-                . simp only [<- List.append_assoc, List.append_left_inj] at *
-                  assumption
-                . rfl
-              . assumption
+          . apply existSR_reflexive
+          . dsimp [ψ₂, ψ] at Hψ
+            obtain ⟨⟨_, h, _⟩, hₑ⟩ := Hψ
+            subst_vars
+            dsimp [ψ₂, ψ]
+            and_intros
             . assumption
-      . obtain ⟨⟨⟨_, _⟩, _⟩, ⟨_, _⟩, _⟩ := a
+            . rw [<- List.append_assoc, <- List.append_assoc, h]
+            . rfl
+            . cases hₑ; constructor
+      . unfold rhsModule at a
+        rw [PortMap.rw_rule_execution] at a
+        dsimp at a
+        obtain ⟨⟨⟨_, _⟩, _⟩, ⟨_, _⟩⟩ := a
         subst_vars
-        reduce at s
-        use ⟨⟨sj2l, sj2r ++ [s]⟩, ⟨sj1l, sj1r⟩⟩
+        have_hole heq : ((rhsModule T₁ T₂ T₃).inputs.getIO { inst := InstIdent.top, name := "i_2" }).fst = _ := by dsimp [reducePortMapgetIO]
+        use ⟨⟨sj2l, sj2r ++ [heq.mp s]⟩, ⟨sj1l, sj1r⟩⟩
         apply And.intro
         . rw [PortMap.rw_rule_execution (by dsimp [reducePortMapgetIO])]; simp
-        . obtain ⟨s', ⟨_, _⟩⟩ := something' ⟨⟨sj2l, sj2r ++ [s]⟩, sj1l, sj1r⟩
-          use s'
+        . use ⟨⟨sj2l, sj2r ++ [heq.mp s]⟩, sj1l, sj1r⟩
           apply And.intro
-          . assumption
-          . unfold φ at *
-            apply And.intro
-            . apply something _ (⟨sj2l, sj2r  ++ [s]⟩, sj1l, sj1r) s'
-              . obtain ⟨Hψ, _⟩ := Hφ
-                unfold ψ at *; simp at *
-                obtain ⟨_, _, _⟩ := Hψ
-                subst_vars
-                and_intros
-                . assumption
-                . assumption
-                . simp only [<- List.append_assoc, List.append_left_inj] at *
-              . assumption
+          . apply existSR_reflexive
+          . dsimp [ψ₂, ψ] at Hψ
+            obtain ⟨⟨_, _, _⟩, hₑ⟩ := Hψ
+            subst_vars
+            dsimp [ψ₂, ψ]
+            and_intros
             . assumption
+            . assumption
+            . rw [<- List.append_assoc]
+            . cases hₑ; constructor
     . exfalso; exact (PortMap.getIO_not_contained_false a HContains)
   -- output rules
   . intro ident i v hrule
     by_cases HContains: ((rhsModule T₁ T₂ T₃).outputs.contains ident)
-    · obtain ⟨⟨sj2l, sj2r⟩, ⟨sj1l, sj1r⟩⟩ := init_s
-      obtain ⟨⟨ij2l, ij2r⟩, ⟨ij1l, ij1r⟩, ip⟩ := init_i
-      obtain ⟨⟨ij2l', ij2r'⟩, ⟨ij1l', ij1r'⟩, ip'⟩ := i
-      unfold rhsModule at HContains; simp at HContains
-      rcases HContains with h <;> subst_vars
-      <;> simp <;>
-      rw [PortMap.rw_rule_execution (by simp [PortMap.getIO]; rfl)] at hrule <;>
-      simp at hrule
-      obtain ⟨⟨_, _⟩, ⟨_, _⟩, _⟩ := hrule
-      repeat cases ‹_∧_›
-      subst_vars
-      rename_i hlval hrval hpf
-      dsimp at *
-      rename_i htmp; cases htmp
-      cases hpf
-      · simp at hlval; simp at *
-        rw [<- List.take_append_drop ij2l.length (List.map Prod.fst ij2r ++ ij1l)] at hrval
-        --rw [<- List.append_assoc (List.map (Prod.snd ∘ Prod.fst) ip')] at hrval
-        --rw [<- List.append.eq_2 _ _ ((List.map (Prod.snd ∘ Prod.fst) ip' ++ List.take ij2l.length (List.map Prod.fst ij2r' ++ ij1l'))] at hrval
-        rw [show v.1.2 ::
-            (List.map (Prod.snd ∘ Prod.fst) ip' ++
-              (List.take ij2l.length (List.map Prod.fst ij2r ++ ij1l) ++
-                List.drop ij2l.length (List.map Prod.fst ij2r ++ ij1l))) = v.1.2 ::
-            (List.map (Prod.snd ∘ Prod.fst) ip' ++
-              List.take ij2l.length (List.map Prod.fst ij2r ++ ij1l)) ++
-                List.drop ij2l.length (List.map Prod.fst ij2r ++ ij1l) by simp] at hrval
-        rw [append_iff] at hrval
-        obtain ⟨hrvall, _⟩ := hrval
-        . subst_vars
-          apply Exists.intro ⟨ ⟨ _, _ ⟩, _, _ ⟩
-          and_intros <;> dsimp
-          · rewrite [product_is_list_zip sj2l, hlval, hrvall]; rfl
-          · apply lengthify at hlval; simp at hlval
-            apply lengthify at hrvall; simp [hlval, add_comm _ 1, add_right_inj, add_assoc] at hrvall
-            rw [List.append_nil, <- List.zip_eq_zipWith, List.map_fst_zip]
-            simp [hrvall] -- lia + assumption in context
-          · apply lengthify at hlval; simp at hlval
-            apply lengthify at hrvall; simp [hlval, add_comm _ 1, add_right_inj, add_assoc] at hrvall
-            rewrite [<- List.zip_eq_zipWith, List.map_snd_zip]
-            . simp only [List.append_assoc, List.take_append_drop]
-            . simp only [List.length_append, List.length_map, List.length_take, add_le_add_iff_left, inf_le_left]
-          · rewrite [List.append_assoc]; rfl
-          · constructor
-        . apply lengthify at hlval; simp at hlval
-          apply lengthify at hrval; simp [hlval, add_comm _ 1, add_right_inj, add_assoc] at hrval
-          simp only [hlval, List.length_map, List.length_cons, List.length_append, List.length_take,
-            add_left_inj, add_right_inj, left_eq_inf] -- lengthify the goal
-          simp only [le_iff_exists_add, <- hrval, add_right_inj, exists_eq'] -- lia
-      . simp at hrval; simp at *
-        rw [<- List.take_append_drop (ij2r.length + ij1l.length) ij2l] at hlval
-        rw [show v.1.1 ::
-            (List.map (Prod.fst ∘ Prod.fst) ip' ++
-              (List.take (ij2r.length + ij1l.length) ij2l ++
-                List.drop (ij2r.length + ij1l.length) ij2l)) = v.1.1 ::
-            (List.map (Prod.fst ∘ Prod.fst) ip' ++
-              List.take (ij2r.length + ij1l.length) ij2l) ++
-                List.drop (ij2r.length + ij1l.length) ij2l by simp] at hlval
-        rw [append_iff] at hlval
-        obtain ⟨hlvall, hlvalr⟩ := hlval
-        . subst_vars
-          apply Exists.intro ⟨ ⟨ _, _ ⟩, _, _ ⟩
-          . and_intros <;> dsimp
-            . rewrite [product_is_list_zip sj2l, hrval, hlvall]; rfl
-            . apply lengthify at hrval; simp at hrval
-              apply lengthify at hlvall; simp [hrval, add_comm _ 1, add_right_inj, add_assoc] at hlvall
-              simp [<- List.zip_eq_zipWith, List.map_fst_zip, hlvall]
-            . apply lengthify at hrval; simp at hrval
-              apply lengthify at hlvall; simp [hrval, add_comm _ 1, add_right_inj, add_assoc] at hlvall
-              rewrite [<- List.zip_eq_zipWith, List.map_snd_zip]
-              . simp
-              . simp [hlvall]
-            . simp
-            . constructor
-        . apply lengthify at hrval; simp [add_comm _ 1, add_right_inj, add_assoc] at hrval
-          apply lengthify at hlval; simp [hrval, add_comm _ 1, add_left_inj, add_assoc] at hlval
-          simp only [hrval, List.length_map, List.length_cons, add_comm _ 1, add_right_inj, List.length_append, List.length_take, left_eq_inf] -- lengthify the goal
-          simp only [le_iff_exists_add, <- hlval, add_right_inj, exists_eq', add_assoc] -- lia
+    . have: ∃ rule, rule ∈ (lhsModule T₁ T₂ T₃).internals := by
+        simp [lhsModule]
+      obtain ⟨rule, h⟩ := this
+      have: ∃ almost_mid_s, rule init_s almost_mid_s := by
+        apply (f₁ _ init_i i) at Hψ
+        . specialize Hψ hrule
+          assumption
+        . assumption
+      obtain ⟨almost_mid_s, _⟩ := this
+      use almost_mid_s
+      rw [exists_and_left]
+      and_intros
+      . apply existSR_single_step' <;> assumption
+      . unfold ψ₂ at Hψ
+        obtain ⟨_, _⟩ := Hψ
+        have hₛ: single_internal almost_mid_s := by
+          apply f' <;> assumption
+        have: existSR (lhsModule T₁ T₂ T₃).internals init_s almost_mid_s := by
+          apply existSR_single_step' <;> assumption
+        have hψ: ψ init_i almost_mid_s := by
+          apply something <;> assumption
+        clear this
+        have: ∃ mid_s, ((lhsModule T₁ T₂ T₃).outputs.getIO ident).snd almost_mid_s ((f ident).mp v) mid_s := by
+          apply f'' <;> assumption
+        obtain ⟨mid_s, _⟩ := this
+        use mid_s
+        apply And.intro
+        . assumption
+        . unfold ψ₂
+          apply And.intro
+          . apply f₄ <;> assumption
+          . apply f₃ <;> assumption
     . exfalso; exact (PortMap.getIO_not_contained_false hrule HContains)
   -- internal rules
-  . intros rule mid_i _ _
+  . intros
     use init_s
     apply And.intro
     . exact existSR_reflexive
-    . unfold φ at *
-      obtain ⟨_, _⟩ := Hφ
-      apply And.intro
-      . apply (something'' init_i)
+    . dsimp [ψ₂] at *
+      obtain ⟨_, _⟩ := Hψ
+      . apply And.intro
+        . apply (something'' init_i)
+          . assumption
+          . apply existSR_single_step' <;> assumption
         . assumption
-        . apply s' init_i mid_i rule
-          and_intros <;> assumption
-      . assumption
-
-#print axioms refines
 
 end DataflowRewriter.JoinRewrite
